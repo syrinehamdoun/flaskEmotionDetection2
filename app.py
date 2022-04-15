@@ -1,11 +1,18 @@
-from flask import Flask
+from flask import Flask, render_template, Response
 import cv2
 import numpy as np
 from keras.models import model_from_json
 app =Flask(__name__)
-
+cap = cv2.VideoCapture(0)
 @app.route('/')
 def index():
+    return render_template('index.html')
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+def gen_frames():
     emotion_dict = {0: "Angry", 1: "Disgusted", 2: "Fearful", 3: "Happy", 4: "Neutral", 5: "Sad", 6: "Surprised"}
 
     # load json and create model
@@ -23,7 +30,6 @@ def index():
 
     # pass here your video path
     # you may download one from here : https://www.pexels.com/video/three-girls-laughing-5273028/
-    cap = cv2.VideoCapture(0)
 
     while True:
         # Find haar cascade to draw bounding box around face
@@ -48,14 +54,15 @@ def index():
             maxindex = int(np.argmax(emotion_prediction))
             cv2.putText(frame, emotion_dict[maxindex], (x+5, y-20), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
 
-        cv2.imshow('Emotion Detection', frame)
+        ret, buffer = cv2.imencode('.jpg', frame)
+        frame = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+        #cv2.imshow('Emotion Detection', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
     cap.release()
     cv2.destroyAllWindows()
-
-    return "hello"
-
 if __name__ =="__main__":
     app.run(debug=True)
